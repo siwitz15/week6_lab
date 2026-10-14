@@ -1,33 +1,35 @@
-// hashlab: ทดลองแฮชรหัสผ่านด้วย bcrypt แล้วดูว่าแฮชเดียวกันเทียบกันได้ แต่รหัสเดียวกันให้แฮชไม่ซ้ำ
-// ใช้: go run ./cmd/hashlab 'รหัสผ่านที่อยากลอง'
 package main
 
 import (
-	"fmt"
-	"os"
-	"time"
+    "fmt"
+    "strings"
+    "time"
 
-	"moviehub/auth"
+    "golang.org/x/crypto/bcrypt"
+
+    "moviehub/auth"
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("ใช้: go run ./cmd/hashlab <password>")
-		os.Exit(1)
-	}
-	pw := os.Args[1]
+    // 1) รหัสเดียวกัน บดสองครั้ง
+    a, _ := auth.HashPassword("popcorn2569")
+    b, _ := auth.HashPassword("popcorn2569")
+    fmt.Println(a)
+    fmt.Println(b)
 
-	start := time.Now()
-	h1, err := auth.HashPassword(pw)
-	if err != nil {
-		fmt.Println("แฮชไม่ได้:", err)
-		os.Exit(1)
-	}
-	fmt.Printf("แฮชครั้งที่ 1: %s (ใช้ %v)\n", h1, time.Since(start).Round(time.Millisecond))
+    // 2) ตรวจรหัสถูกกับรหัสผิด
+    fmt.Println("popcorn2569 ตรงกับ a:", auth.CheckPassword(a, "popcorn2569"))
+    fmt.Println("popcorn2569 ตรงกับ b:", auth.CheckPassword(b, "popcorn2569"))
+    fmt.Println("popcorn2568 ตรงกับ a:", auth.CheckPassword(a, "popcorn2568"))
 
-	h2, _ := auth.HashPassword(pw)
-	fmt.Printf("แฮชครั้งที่ 2: %s\n", h2)
-	fmt.Println("สองแฮชเหมือนกันไหม:", h1 == h2, "(ไม่เหมือน เพราะมี salt สุ่มในแฮช)")
-	fmt.Println("เทียบรหัสถูกกับแฮช 1:", auth.CheckPassword(h1, pw))
-	fmt.Println("เทียบรหัสผิดกับแฮช 1:", auth.CheckPassword(h1, pw+"x"))
+    // 3) หมุนปุ่มความช้า
+    for _, cost := range []int{8, 10, 12} {
+        start := time.Now()
+        bcrypt.GenerateFromPassword([]byte("popcorn2569"), cost)
+        fmt.Printf("cost %d ใช้เวลา %v\n", cost, time.Since(start).Round(time.Millisecond))
+    }
+
+    // 4) เพดาน 72 ไบต์
+    _, err := auth.HashPassword(strings.Repeat("a", 73))
+    fmt.Println("73 ไบต์:", err)
 }

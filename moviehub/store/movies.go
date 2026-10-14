@@ -1,49 +1,41 @@
 package store
 
-import (
-	"context"
-	"strings"
-	"time"
-)
+import "context"
 
 type Movie struct {
-	ID          int64      `json:"id"`
-	Title       string     `json:"title"`
-	TitleTH     *string    `json:"title_th"`
-	Overview    *string    `json:"overview"`
-	PosterPath  *string    `json:"poster_path"`
-	ReleaseDate *time.Time `json:"release_date"`
-	VoteAverage float64    `json:"vote_average"`
+    ID      int64   `json:"id"`
+    Title   string  `json:"title"`
+    TitleTh *string `json:"titleTh"`
+    Genre   *string `json:"genre"`
+    Year    *int    `json:"year"`
+    Rating  float64 `json:"rating"`
+    Poster  *string `json:"poster"`
 }
 
-// escapeLike กัน % และ _ ที่ผู้ใช้พิมพ์มาไม่ให้กลายเป็นตัวแทนอักขระ
-func escapeLike(s string) string {
-	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
-	return r.Replace(s)
-}
-
+// SearchMovies ค่าจากผู้ใช้เดินทางผ่าน $1 แยกจากคำสั่งเสมอ
 func (s *Store) SearchMovies(ctx context.Context, q string) ([]Movie, error) {
-	pattern := "%" + escapeLike(strings.ToLower(strings.TrimSpace(q))) + "%"
-	rows, err := s.Pool.Query(ctx, `
-		SELECT id, title, title_th, overview, poster_path, release_date, vote_average::float8
-		FROM movies
-		WHERE lower(title) LIKE $1 ESCAPE '\'
-		   OR lower(coalesce(title_th, '')) LIKE $1 ESCAPE '\'
-		ORDER BY popularity DESC
-		LIMIT 100`, pattern)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	movies := []Movie{}
-	for rows.Next() {
-		var m Movie
-		if err := rows.Scan(&m.ID, &m.Title, &m.TitleTH, &m.Overview,
-			&m.PosterPath, &m.ReleaseDate, &m.VoteAverage); err != nil {
-			return nil, err
-		}
-		movies = append(movies, m)
-	}
-	return movies, rows.Err()
+    rows, err := s.Pool.Query(ctx,
+        `SELECT m.id, m.title, m.title_th,
+                (SELECT coalesce(g.name_th, g.name_en) FROM movie_genres mg
+                   JOIN genres g ON g.id = mg.genre_id
+                  WHERE mg.movie_id = m.id AND mg.position = 0),
+                extract(year FROM m.release_date)::int,
+                round(m.vote_average, 1)::float8,
+                'https://image.tmdb.org/t/p/w500' || m.poster_path
+         FROM movies m
+         WHERE lower(m.title) LIKE '%' || lower($1) || '%'
+         ORDER BY m.popularity DESC`, q)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+    out := []Movie{}
+    for rows.Next() {
+        var m Movie
+        if err := rows.Scan(&m.ID, &m.Title, &m.TitleTh, &m.Genre, &m.Year, &m.Rating, &m.Poster); err != nil {
+            return nil, err
+        }
+        out = append(out, m)
+    }
+    return out, rows.Err()
 }

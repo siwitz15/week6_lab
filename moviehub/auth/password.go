@@ -1,46 +1,14 @@
 package auth
 
-import (
-	"errors"
+import "golang.org/x/crypto/bcrypt"
 
-	"golang.org/x/crypto/bcrypt"
-)
-
-const (
-	MinPasswordLen = 8
-	// bcrypt อ่านรหัสผ่านแค่ 72 ไบต์แรก เกินกว่านั้นถูกตัดทิ้งเงียบ ๆ จึงต้องปฏิเสธตั้งแต่ต้น
-	MaxPasswordBytes = 72
-)
-
-var (
-	ErrPasswordTooShort = errors.New("รหัสผ่านสั้นเกินไป")
-	ErrPasswordTooLong  = errors.New("รหัสผ่านยาวเกิน 72 ไบต์")
-)
-
-func ValidatePassword(pw string) error {
-	if len([]rune(pw)) < MinPasswordLen {
-		return ErrPasswordTooShort
-	}
-	if len(pw) > MaxPasswordBytes {
-		return ErrPasswordTooLong
-	}
-	return nil
+// HashPassword แปลงรหัสผ่านเป็นลายนิ้วมือ bcrypt ที่ย้อนกลับไม่ได้
+func HashPassword(plain string) (string, error) {
+    b, err := bcrypt.GenerateFromPassword([]byte(plain), bcrypt.DefaultCost)
+    return string(b), err
 }
 
-func HashPassword(pw string) (string, error) {
-	if err := ValidatePassword(pw); err != nil {
-		return "", err
-	}
-	b, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
-	return string(b), err
+// CheckPassword ตอบว่ารหัสที่พิมพ์มาตรงกับลายนิ้วมือที่เก็บไว้ไหม
+func CheckPassword(hash, plain string) bool {
+    return bcrypt.CompareHashAndPassword([]byte(hash), []byte(plain)) == nil
 }
-
-func CheckPassword(hash, pw string) bool {
-	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(pw)) == nil
-}
-
-// DummyHash ใช้เทียบตอนไม่พบอีเมล เพื่อให้ login ที่อีเมลผิดกับรหัสผิดใช้เวลาเท่ากัน
-var DummyHash = func() string {
-	h, _ := bcrypt.GenerateFromPassword([]byte("dummy-password-for-timing"), bcrypt.DefaultCost)
-	return string(h)
-}()
