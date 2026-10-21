@@ -1,3 +1,4 @@
+.env
 .jwt_secret
-moviehub
-*.exe.jwt_secret
+*.exe
+bin/
